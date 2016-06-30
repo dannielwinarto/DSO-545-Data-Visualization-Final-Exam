@@ -1,0 +1,187 @@
+---
+title: 'DSO 545: Statistical Computing and Data Visualization'
+author: "Midterm 02"
+date: "Spring 2016"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+header-includes: \usepackage{color}
+---
+
+************************
+\begin{center}
+  \LARGE{\textcolor{red}{MY SOLUTIONS}}
+\end{center}
+************************
+
+\newpage
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(rvest)
+library(ggmap)
+library(maps)
+
+```
+
+
+
+## Case 01: There is always Room for Icecream! 
+
+
+The United Nations Industrial Commodity Statistics Database provides annual statistics on the production of major industrial commodities by country. Data are provided in terms of physical quantities as well as monetary value. The online database covers the years 1995 to 2012 (Source: http://data.un.org/Data.aspx?d=ICS&f=cmID:22970-0). You can find the dataset in `icecream.csv` on blackboard.  
+ 
+**1. ** Aggregate the dataset to find the average spending on icecream for all listed countries over the given years. 
+
+```{r,  message = FALSE, warning = FALSE}
+setwd("C:/Users/dan_9/Desktop/DSO 545/Final exam/FINAL")
+icecream <- read.csv("icecream.csv")
+
+#### INSERT YOUR CODE HERE
+glimpse(icecream)
+Q1p1 = icecream %>% group_by(Country.or.Area)  %>% summarise(MillionUSD = mean(USDinMillions))
+
+# FinalAnswer:
+Q1p1
+
+
+```
+
+**2. ** Create a chloropleth map that shows the average spending on icecream for the listed countires over the given years. 
+Your map would look as follows:
+
+```{r, message = FALSE, warning = FALSE}
+
+#### INSERT YOUR CODE HERE
+world_map = map_data("world")
+world_map$region = tolower(world_map$region)
+Q1p1$Country.or.Area = tolower(Q1p1$Country.or.Area)
+
+glimpse(world_map)
+
+countryIceCream = merge( world_map,Q1p1, by.x = "region", by.y = "Country.or.Area", all.x = T)
+countryIceCream = arrange(countryIceCream, group, order)
+
+countryIceCream$MillionUSD[is.na(countryIceCream$MillionUSD)] = 0
+table(countryIceCream$MillionUSD)
+glimpse(countryIceCream)
+
+
+# FinalAnswer:
+ggplot(countryIceCream, aes(x = long, y = lat, group = group, fill = MillionUSD))+
+  geom_polygon(color = "black") +
+  scale_fill_continuous(low = "white", high = "red", name = "Million USD")+
+  ggtitle("Average Spending on Icecream for 1995 - 2012 \n (No data available for white area)") 
+  
+
+```
+
+
+\newpage
+
+### Case 02: MLS Players Compensation
+
+Since football season is not here yet, you might want to enjoy some soccer games for the rest of the summer? Major League Soccer (MLS) is a professional soccer league representing the sport's highest level in both the United States and Canada. In this case, we will be scrapping the compensations for the players coming to MLS.
+
+The wikipedia page (`http://en.wikipedia.org/wiki/Designated_Player_Rule`) has a table of those compensations!
+
+**1.** Use `rvest` R package to scrape the data table. Save it to `players`. The xpath for the table is: `//*[@id="mw-content-text"]/table[1]`
+
+```{r, message = FALSE, warning = FALSE}
+
+#### INSERT YOUR CODE HERE
+urlC2 = "http://en.wikipedia.org/wiki/Designated_Player_Rule"
+tbl = urlC2 %>%
+  html() %>%
+  html_nodes(xpath = '//*[@id="mw-content-text"]/table[1]' ) %>% 
+  html_table()
+players = tbl[[1]]
+
+# FinalAnswer:
+players
+```
+
+**2.** Clean the column with compensation information. Change the column type to `numeric`, and rename it `Compensation`. (Hint: The dollar sign is a wild character!)
+
+```{r, message = FALSE, warning = FALSE}
+
+#### INSERT YOUR CODE HERE
+
+glimpse(players)
+colnames(players)[5] = "Compensation"
+players$Compensation =  str_replace_all(players$Compensation,"\\$","") 
+players$Compensation =  str_replace_all(players$Compensation,",","")
+players$Compensation = as.numeric(players$Compensation)
+C2Q2 = tbl_df(players)
+
+# FinalAnswer:
+C2Q2
+```
+
+**3.** Create a subset of `players` called `NYLAplayers`, which only contains records of players currently play for `New York City FC` or `LA Galaxy`, and order your subset by `Compensation` in decreasing order. Do you know any of these big names? Let's go down to Stubhub Center to watch them live! (Hint: You might need to rename the columns first!)
+
+```{r, message = FALSE, warning = FALSE}
+
+#### INSERT YOUR CODE HERE
+
+colnames(players)[4] = "CurrentClub"
+NYLAplayers = players %>% filter(CurrentClub %in% c("LA Galaxy","New York City FC")) %>% arrange(desc(Compensation))
+
+# FinalAnswer:
+NYLAplayers
+```
+
+**4. ** Visualize the `NYLAplayers` compensation as follows:
+
+```{r, message = FALSE, warning = FALSE}
+
+#### INSERT YOUR CODE HERE
+
+# FinalAnswer:
+ggplot(NYLAplayers, aes(x = Compensation, y = reorder(Player,Compensation ))) + geom_point()+
+  xlab("Compensation (Millions)") +
+  ylab("")+
+  ggtitle("Top Compensated Players")+
+  scale_x_continuous(breaks = seq(3000000,6000000,1000000), labels =c("3", "4", "5", "6"))
+
+```
+
+\newpage
+
+### Case 03: How much does Joey Owe Chandler in Friends TV Show?
+
+Have you seen Friends? In season 8 episode 22 of Friends, Joey is figuring out how much money he owes Chandler for rent, acting lessons, dance lessons, head shots, etc. How much did Joey owe Chandler?
+
+The text files `friends.txt` summarizes a conversation between Joey and Chandler. Use `stringr` R package and regular expressions to help with the math. **What is the total amount that Joey owes Chandler**? 
+
+Hints: 
+
+1. The amounts have dollar signs
+2. The $ sign is a wild character
+3. Remember that most of `stringr` functions return a list. So in order to access the elements in a list, you need to use double square brackets. e.g. amount[[1]] returns the first element in a list.
+
+
+```{r, message = FALSE, warning = FALSE}
+
+  # read the text file as follows
+  library(stringr)
+  fileName <- "friends.txt"
+  text <- readChar(fileName, file.info(fileName)$size)
+  
+  #### INSERT YOUR CODE HERE
+  
+  str_locate_all(text, pattern = "\\$[0-9]*")
+  Money = str_extract_all (text, pattern = "\\$[0-9]*")
+  
+  MoneyNoDollarSign = as.numeric(str_replace(Money[[1]], "\\$",""))
+  total = sum(MoneyNoDollarSign)
+  
+  # FinalAnswer:
+  total
+  ```
+
+
